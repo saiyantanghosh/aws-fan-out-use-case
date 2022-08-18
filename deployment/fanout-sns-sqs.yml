@@ -1,0 +1,161 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "AWS CloudFormation for fan out messaging using SQS and SNS",
+  "Resources": {
+    "OrdersTopic": {
+      "Type": "AWS::SNS::Topic"
+    },
+    "OrderCheckoutQueue": {
+      "Type": "AWS::SQS::Queue"
+    },
+    "OrderCancelledQueue": {
+      "Type": "AWS::SQS::Queue"
+    },
+    "FanoutQueuePolicy": {
+      "Type": "AWS::SQS::QueuePolicy",
+      "Properties": {
+        "Queues" : [
+        { "Ref" : "OrderCheckoutQueue" },
+        { "Ref" : "OrderCancelledQueue" }
+      ],
+        "PolicyDocument": {
+           "Id": "FanoutQueuePolicyDocument",
+          "Statement": [
+            {
+              "Sid": "Allow-SNS-SendMessage-checkout",
+              "Principal": "*",
+              "Action": [
+                  "sqs:SendMessage"
+              ],
+              "Effect": "Allow",
+              "Resource": 
+                {
+                  "Fn::GetAtt": [
+                    "OrderCheckoutQueue",
+                    "Arn"
+                  ]
+                },
+              "Condition": {
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                      "Ref": "OrdersTopic"
+                    }
+                  }
+              }
+            },
+             {
+              "Sid": "Allow-SNS-SendMessage-cancelled",
+              "Principal": "*",
+              "Action": [
+                  "sqs:SendMessage"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                  "Fn::GetAtt": [
+                    "OrderCancelledQueue",
+                    "Arn"
+                  ]
+                },
+              "Condition": {
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                      "Ref": "OrdersTopic"
+                    }
+                  }
+              }
+            }
+          ],
+        },
+        }
+      },
+    "OrderCheckoutQueueSubscription": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": {
+        "TopicArn": {
+          "Ref": "OrdersTopic"
+        },
+        "Endpoint": {
+          "Fn::GetAtt": [
+            "OrderCheckoutQueue",
+            "Arn"
+          ]
+        },
+        "Protocol": "sqs",
+        "RawMessageDelivery": "true",
+        "FilterPolicy": {
+          "event-type": [
+            "CHECKOUT"
+          ]
+        }
+      }
+    },
+    "OrderCancelledQueueSubscription": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": {
+        "TopicArn": {
+          "Ref": "OrdersTopic"
+        },
+        "Endpoint": {
+          "Fn::GetAtt": [
+            "OrderCancelledQueue",
+            "Arn"
+          ]
+        },
+        "Protocol": "sqs",
+        "RawMessageDelivery": "true",
+        "FilterPolicy": {
+          "event-type": [
+            "CANCELLED"
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "OrdersTopicARN": {
+      "Value": {
+        "Ref": "OrdersTopic"
+      }
+    },
+    "OrderCheckoutQueueInfo": {
+      "Value": {
+        "Fn::Join": [
+          " ",
+          [
+            "ARN:",
+            {
+              "Fn::GetAtt": [
+                "OrderCheckoutQueue",
+                "Arn"
+              ]
+            },
+            "URL:",
+            {
+              "Ref": "OrderCheckoutQueue"
+            }
+          ]
+        ]
+      }
+    },
+    "OrderCancelledQueueInfo": {
+      "Value": {
+        "Fn::Join": [
+          " ",
+          [
+            "ARN:",
+            {
+              "Fn::GetAtt": [
+                "OrderCancelledQueue",
+                "Arn"
+              ]
+            },
+            "URL:",
+            {
+              "Ref": "OrderCancelledQueue"
+            }
+          ]
+        ]
+      }
+    }
+  }
+}
